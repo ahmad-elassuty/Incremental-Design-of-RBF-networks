@@ -114,6 +114,8 @@ class ID_RBF:
       self.__forward()
       self.__calRMSE(iter)
 
+      time.sleep(5)
+      count = 0
       while True:
         iter += 1
 
@@ -124,6 +126,8 @@ class ID_RBF:
         wo, centers, wh = self.update(quasiHessianMat, gradientVec, combinationCoef, updateNetwork=False)
         ah, ao, error = forward(self.np, self.nh, patterns, targets, centers, wh, wo)
         RMSE = calRMSE(self.np, error)
+        if iter is 2:
+          bb = RMSE
 
         # self.update(quasiHessianMat, gradientVec, combinationCoef)
         # self.__forward()
@@ -139,11 +143,14 @@ class ID_RBF:
 
         prevRMSE = self.RMSE[iter-1]
 
-        # m = 1
+        m = 1
+        tem = RMSE
+        orgCombinationCoef = combinationCoef
+        print "org combinationCoef ----", combinationCoef
         while RMSE >= prevRMSE:
-          # if m > 5:
-          #   break
-          # m += 1
+          if m > 20 and tem <= RMSE:
+            combinationCoef = orgCombinationCoef
+            break
 
           combinationCoef *= 10
 
@@ -151,35 +158,20 @@ class ID_RBF:
             combinationCoef = 1./np.finfo(np.float64).max
 
           print "combinationCoef: ", combinationCoef
-          wo, centers, wh = self.update(quasiHessianMat, gradientVec, combinationCoef, updateNetwork=False)
-          ah, ao, error = forward(self.np, self.nh, patterns, targets, centers, wh, wo)
-          RMSE = calRMSE(self.np, error)
-          
+          wo_1, centers_1, wh_1 = self.update(quasiHessianMat, gradientVec, combinationCoef, updateNetwork=False)
+          ah_1, ao_1, error_1 = forward(self.np, self.nh, patterns, targets, centers_1, wh_1, wo_1)
+          RMSE = calRMSE(self.np, error_1)
+
+          print RMSE < tem
+          if RMSE < tem:
+            wo, centers, wh = wo_1, centers_1, wh_1
+            ah, ao, error = ah_1, ao_1, error_1
+            tem = RMSE
+            orgCombinationCoef = combinationCoef
+            m = 0
+          m += 1
+
           print "inner RMSE: ", RMSE
-
-
-          # if tem == RMSE:
-          #   m += 1
-          #   if m >= 10:
-          #     coef -= 1.
-          # else:
-          #   tem = RMSE
-          #   coef = 10.
-          #   m = 1
-
-          # RMSE_1 = calRMSE(self.np, error)
-          
-          # print "inner RMSE 1: ", RMSE_1
-
-          # if RMSE_1 > RMSE and not (combinationCoef <= 9.88131291682e-323):
-          #   combinationCoef /= 100
-          #   print "combinationCoef 1: ", combinationCoef
-          #   wo, centers, wh = self.update(quasiHessianMat, gradientVec, combinationCoef, updateNetwork=False)
-          #   ah, ao, error = forward(self.np, self.nh, patterns, targets, centers, wh, wo)
-          #   RMSE = calRMSE(self.np, error)
-          # else:
-          #   RMSE = RMSE_1
-
           
         
         self.wo = wo
@@ -193,12 +185,15 @@ class ID_RBF:
         # self.networkParams()
         if self.RMSE[iter] < prevRMSE:
           combinationCoef /= 10.
-        else:
-          combinationCoef = 0.0006
 
 
-        if self.RMSE[iter] <= target_Error_1:
+        if self.RMSE[iter] >= bb and count == 30:
           break
+        elif self.RMSE[iter] < bb:
+          bb = self.RMSE[iter]
+          count = 0
+        print "----------------------------->", count
+        count += 1
 
       if self.RMSE[iter] <= target_Error_2:
         break
@@ -222,6 +217,10 @@ class ID_RBF:
     print "ao : ", self.ao
     print "error : ",  self.error
     time.sleep(5)
+
+  def plot(self, patterns):
+    c = patterns.reshape(1,201).A1
+    plt.plot(c.A1, np.sin(c.A1))
 
   def update(self, quasiHessianMat, gradientVec, combinationCoef, updateNetwork=True):
     result = np.row_stack((self.wo, self.centers.flatten().T, self.wh[1:][np.newaxis].T))\
