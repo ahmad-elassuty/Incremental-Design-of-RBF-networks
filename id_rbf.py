@@ -114,7 +114,6 @@ class ID_RBF:
       self.__forward()
       self.__calRMSE(iter)
 
-      time.sleep(5)
       count = 0
       while True:
         iter += 1
@@ -137,16 +136,16 @@ class ID_RBF:
         # time.sleep(5)
         # print self.RMSE[iter] >= self.RMSE[iter-1]
 
-        print "prev Itr: ", self.RMSE[iter-1]
-        print "out RMSE: ", RMSE
-        print "Cond: ", RMSE > self.RMSE[iter-1]
+        # print "prev Itr: ", self.RMSE[iter-1]
+        # print "out RMSE: ", RMSE
+        # print "Cond: ", RMSE > self.RMSE[iter-1]
 
         prevRMSE = self.RMSE[iter-1]
 
         m = 1
         tem = RMSE
         orgCombinationCoef = combinationCoef
-        print "org combinationCoef ----", combinationCoef
+        # print "org combinationCoef ----", combinationCoef
         while RMSE >= prevRMSE:
           if m > 20 and tem <= RMSE:
             combinationCoef = orgCombinationCoef
@@ -157,12 +156,12 @@ class ID_RBF:
           if combinationCoef >= np.finfo(np.float64).max:
             combinationCoef = 1./np.finfo(np.float64).max
 
-          print "combinationCoef: ", combinationCoef
+          # print "combinationCoef: ", combinationCoef
           wo_1, centers_1, wh_1 = self.update(quasiHessianMat, gradientVec, combinationCoef, updateNetwork=False)
           ah_1, ao_1, error_1 = forward(self.np, self.nh, patterns, targets, centers_1, wh_1, wo_1)
           RMSE = calRMSE(self.np, error_1)
 
-          print RMSE < tem
+          # print RMSE < tem
           if RMSE < tem:
             wo, centers, wh = wo_1, centers_1, wh_1
             ah, ao, error = ah_1, ao_1, error_1
@@ -171,7 +170,7 @@ class ID_RBF:
             m = 0
           m += 1
 
-          print "inner RMSE: ", RMSE
+          # print "inner RMSE: ", RMSE
           
         
         self.wo = wo
@@ -192,8 +191,11 @@ class ID_RBF:
         elif self.RMSE[iter] < bb:
           bb = self.RMSE[iter]
           count = 0
-        print "----------------------------->", count
+        # print "----------------------------->", count
         count += 1
+
+        if iter%10000 == 0:
+          print ">>", self.RMSE[iter]
 
       if self.RMSE[iter] <= target_Error_2:
         break
