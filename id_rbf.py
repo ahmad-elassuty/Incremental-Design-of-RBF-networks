@@ -1,5 +1,7 @@
 import numpy as np
 from numpy.linalg import inv
+import matplotlib.pylab as plt
+
 np.set_printoptions(precision=15)
 import time
 # General Methods
@@ -19,7 +21,9 @@ def calHiddenActivations(nPatterns, nh, patterns, centers, wh):
   ah = np.empty((nPatterns, nh))
   for i, pattern in enumerate(patterns):
     numerator = np.sum(np.asmatrix(np.power(pattern - centers, 2)), axis=1)
+    
     ah[i] = np.exp(-1. * (numerator.T / wh))
+
   return ah
 
 def calOutputActivations(nPatterns, ah, wo):
@@ -90,9 +94,9 @@ class ID_RBF:
     # number of training patterns
     self.np = self.targets.shape[0]
 
-    target_Error_1 = 0.2
-    target_Error_2 = 2.5e-5
-    combinationCoef = 10.0
+    # target_Error_1 = 0.2
+    target_Error_2 = 2.5e-7
+    combinationCoef = .01
 
     while True:
       if self.nh == 0:
@@ -117,7 +121,6 @@ class ID_RBF:
       count = 0
       while True:
         iter += 1
-
         jacobianMat = self.calJacobianMat()
         quasiHessianMat, gradientVec = self.calQuashiAndGradient(jacobianMat)
 
@@ -143,31 +146,31 @@ class ID_RBF:
         prevRMSE = self.RMSE[iter-1]
 
         m = 1
-        tem = RMSE
-        orgCombinationCoef = combinationCoef
+        # tem = RMSE
+        # orgCombinationCoef = combinationCoef
         # print "org combinationCoef ----", combinationCoef
         while RMSE >= prevRMSE:
-          if m > 20 and tem <= RMSE:
-            combinationCoef = orgCombinationCoef
+          if m > 50:
+            # combinationCoef = orgCombinationCoef
             break
 
-          combinationCoef *= 10
+          combinationCoef *= 10.
 
           if combinationCoef >= np.finfo(np.float64).max:
             combinationCoef = 1./np.finfo(np.float64).max
 
           # print "combinationCoef: ", combinationCoef
-          wo_1, centers_1, wh_1 = self.update(quasiHessianMat, gradientVec, combinationCoef, updateNetwork=False)
-          ah_1, ao_1, error_1 = forward(self.np, self.nh, patterns, targets, centers_1, wh_1, wo_1)
-          RMSE = calRMSE(self.np, error_1)
+          wo, centers, wh = self.update(quasiHessianMat, gradientVec, combinationCoef, updateNetwork=False)
+          ah, ao, error = forward(self.np, self.nh, patterns, targets, centers, wh, wo)
+          RMSE = calRMSE(self.np, error)
 
           # print RMSE < tem
-          if RMSE < tem:
-            wo, centers, wh = wo_1, centers_1, wh_1
-            ah, ao, error = ah_1, ao_1, error_1
-            tem = RMSE
-            orgCombinationCoef = combinationCoef
-            m = 0
+          # if RMSE < tem:
+          #   wo, centers, wh = wo_1, centers_1, wh_1
+          #   ah, ao, error = ah_1, ao_1, error_1
+          #   tem = RMSE
+          #   # orgCombinationCoef = combinationCoef
+          #   m = 0
           m += 1
 
           # print "inner RMSE: ", RMSE
@@ -194,13 +197,18 @@ class ID_RBF:
         # print "----------------------------->", count
         count += 1
 
-        if iter%10000 == 0:
+        if iter%1000 == 0:
           print ">>", self.RMSE[iter]
+
+        if np.abs(np.around((self.RMSE[iter-1] - self.RMSE[iter])*1.e9, decimals=1)) <= 1.:
+          break
+
 
       if self.RMSE[iter] <= target_Error_2:
         break
     
       print self.RMSE[iter]
+      self.plot(self.patterns)
     #   print self.error
     # print self.wo
     # print self.centers
@@ -210,6 +218,7 @@ class ID_RBF:
     # print self.error
     print self.RMSE[len(self.RMSE)]
     print self.nh
+    self.plot(self.patterns)
 
   def networkParams(self):
     print "wo : ", self.wo
@@ -221,8 +230,12 @@ class ID_RBF:
     time.sleep(5)
 
   def plot(self, patterns):
-    c = patterns.reshape(1,201).A1
-    plt.plot(c.A1, np.sin(c.A1))
+    dim = patterns.shape
+    if dim[1] == 1:
+      c = patterns.reshape(1, dim[0]).A1
+      ao = self.activate(patterns).reshape(1, dim[0]).A1
+      plt.plot(c, ao)
+      plt.show()
 
   def update(self, quasiHessianMat, gradientVec, combinationCoef, updateNetwork=True):
     result = np.row_stack((self.wo, self.centers.flatten().T, self.wh[1:][np.newaxis].T))\
@@ -232,7 +245,7 @@ class ID_RBF:
 
     wo = result[0:outputConnections]
     centers = np.asmatrix(result[outputConnections: self.nh * self.ni + outputConnections].reshape(self.nh, self.ni))
-    wh = np.asarray(result[self.nh * self.ni + outputConnections:].T).flatten()
+    wh = np.abs(np.asarray(result[self.nh * self.ni + outputConnections:].T).flatten())
 
     if not updateNetwork:
       return (wo, centers, wh)
@@ -279,13 +292,13 @@ class ID_RBF:
     jacobianMat = np.column_stack((jacobianMat, -1. * self.ah))
     
     # centers
-    x = - 1. * np.multiply(self.ah, self.wo[1:].T)
+    x = -1. * np.multiply(self.ah, self.wo[1:].T)
 
     temMat = np.empty((self.np,1))
     for i, center in enumerate(self.centers):
       # center represents one hidden unit
       y = self.patterns - center
-      c = (np.multiply(2. * x[:,i], y) / self.wh[i+1])
+      c = np.multiply(2. * x[:,i], y) / self.wh[i+1]
       jacobianMat = np.column_stack((jacobianMat, c))
 
       # cal hidden widths
