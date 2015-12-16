@@ -15,6 +15,7 @@ def calError(targets, ao):
   return targets - ao
 
 def calRMSE(nPatterns, error):
+  # print np.sqrt((1.0/nPatterns) * sum(np.power(error, 2)))[0,0]
   return np.sqrt((1.0/nPatterns) * sum(np.power(error, 2)))[0,0]
 
 def calHiddenActivations(nPatterns, nh, patterns, centers, wh):
@@ -95,7 +96,8 @@ class ID_RBF:
     self.np = self.targets.shape[0]
 
     # target_Error_1 = 0.2
-    target_Error_2 = 2.5e-7
+    target_Error_2 = 2.0e-7
+    # target_Error_2 = 0.03
     combinationCoef = .01
 
     while True:
@@ -154,7 +156,7 @@ class ID_RBF:
             # combinationCoef = orgCombinationCoef
             break
 
-          combinationCoef *= 10.
+          combinationCoef *= 10.0
 
           if combinationCoef >= np.finfo(np.float64).max:
             combinationCoef = 1./np.finfo(np.float64).max
@@ -189,7 +191,7 @@ class ID_RBF:
           combinationCoef /= 10.
 
 
-        if self.RMSE[iter] >= bb and count == 30:
+        if self.RMSE[iter] >= bb and count == 10:
           break
         elif self.RMSE[iter] < bb:
           bb = self.RMSE[iter]
@@ -209,6 +211,8 @@ class ID_RBF:
     
       print self.RMSE[iter]
       self.plot(self.patterns)
+      # plt.plot(self.patterns.A1, self.error)
+      # plt.show()
     #   print self.error
     # print self.wo
     # print self.centers
@@ -245,7 +249,7 @@ class ID_RBF:
 
     wo = result[0:outputConnections]
     centers = np.asmatrix(result[outputConnections: self.nh * self.ni + outputConnections].reshape(self.nh, self.ni))
-    wh = np.abs(np.asarray(result[self.nh * self.ni + outputConnections:].T).flatten())
+    wh = np.asarray(result[self.nh * self.ni + outputConnections:].T).flatten()
 
     if not updateNetwork:
       return (wo, centers, wh)
@@ -284,6 +288,7 @@ class ID_RBF:
     self.ao = np.column_stack(([1.]*self.np, self.ah)) * self.wo
     return self.ao
 
+  # calculates the jacobian matrix for all training patterns
   def calJacobianMat(self):
     # bias weight
     jacobianMat = np.full((self.np, 1), -1.)
@@ -323,12 +328,15 @@ class ID_RBF:
 
     return (quasiHessianMat, gradientVec)
 
+  # calculates the sub quasi hessian matrix
   def calSubQuasiHessianMat(self, jacobianVec):
     return jacobianVec.T * jacobianVec
 
+  # calculates the sub gradient vector 
   def calSubGradientVec(self, jacobianVec, index):
     return jacobianVec.T * self.error[index,0]
 
+  # is used to test the input patterns using the trained network
   def activate(self, patterns):
     ah = calHiddenActivations(patterns.shape[0], self.nh, patterns, self.centers, self.wh[1:])
     ao = calOutputActivations(patterns.shape[0], ah, self.wo)
